@@ -1,100 +1,68 @@
-# vinext-starter
+# OrthoVision ACL
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+**Browser-based movement measurement for single-leg squats during ACL rehabilitation.**
 
-## Prerequisites
+[**Live demo**](https://orthovision-acl.vercel.app/) · [Source code](https://github.com/suryaanand1/orthovision-acl)
 
-- Node.js `>=22.13.0`
+OrthoVision ACL is a mobile-friendly prototype exploring what can be measured from an ordinary single-leg squat video without force plates or wearables. It is **not** a medical device, diagnostic tool, injury-risk predictor, or return-to-sport clearance system.
 
-## Quick Start
+## Features
+
+- Upload a squat video or record one directly with a phone/laptop camera.
+- Run MediaPipe Pose Landmarker locally in the browser, with a skeletal overlay.
+- Estimate knee flexion using 3D hip, knee, and ankle landmarks.
+- Measure 2D frontal knee deviation relative to the hip-to-ankle line, normalized by detected leg length.
+- Filter landmarks based on tracking confidence and warn when valid tracking coverage is below 70%.
+- Replay timestamped peak-flexion and maximum medial-deviation moments with pose overlays.
+- Assess both legs in one session and compare movement measurements side by side.
+- Keep video frames and computed measurements in the browser rather than uploading recordings to an application server.
+
+## Engineering decisions
+
+**Peak knee flexion:** Instead of reporting the single largest observed angle (which can be distorted by a tracking outlier), the app reports the **95th percentile of valid-frame knee-flexion angles**.
+
+**Frontal knee deviation:** The selected knee's displacement from the hip-to-ankle reference line is normalized by detected leg length to reduce the effect of subject-to-camera distance. This is an **image-plane measurement**, not calibrated 3D biomechanics.
+
+**Quality and interpretability:** Low-confidence landmarks are filtered out. Tracking-coverage warnings and key-moment replay help users see how reported measurements relate to the underlying video.
+
+## Technology
+
+Next.js · React · TypeScript · Tailwind CSS · MediaPipe Pose Landmarker · HTML Canvas · MediaRecorder / MediaDevices APIs · Vercel
+
+### Source code landmarks
+
+- [Video capture, pose tracking, and measurement collection](app/PoseVideo.tsx)
+- [Knee-angle and percentile utilities](app/measurementMath.ts)
+- [Assessment and bilateral comparison flow](app/page.tsx)
+- [Timestamped key-moment replay](app/KeyMomentReplay.tsx)
+
+## Try the demo
+
+1. Open [orthovision-acl.vercel.app](https://orthovision-acl.vercel.app/).
+2. Choose the leg to assess.
+3. Upload or record a single-leg squat video.
+4. Review knee flexion, normalized frontal deviation, and tracking coverage.
+5. Replay key moments; optionally repeat for the other leg.
+
+Use consistent camera placement and ensure the hip, knee, and ankle stay visible. For camera recording, grant the browser camera permission.
+
+## Run locally
+
+Requires Node.js 22.13+.
 
 ```bash
+git clone https://github.com/suryaanand1/orthovision-acl.git
+cd orthovision-acl
 npm install
 npm run dev
-npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+Open http://localhost:3000. Run `npm run build` or `npm run lint` for additional checks.
 
-## Included Shape
+## Limitations
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+This is an **engineering/hackathon prototype**, not clinically validated software. It does not diagnose ACL injuries, score injury risk, recommend treatment, apply clinical thresholds, or determine clearance to return to sport. Pose accuracy depends on camera angle, occlusion, lighting, motion blur, and the model's tracking quality. The 95th-percentile and leg-length normalization choices improve robustness but do not establish clinical validity. Side-to-side differences are descriptive only.
 
-## Workspace Auth Headers
+## Future work
 
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+Evaluate measurement repeatability under different camera conditions, compare estimates against calibrated reference methods, and improve feedback when tracking is inadequate.
